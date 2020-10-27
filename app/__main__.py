@@ -1,40 +1,56 @@
-import sys
-import numpy as np
-import matplotlib.pyplot as plt
-import skfuzzy as fuzz
-from skfuzzy import control as ctrl
+import numpy
+from matplotlib import pyplot
+import skfuzzy
+from skfuzzy import control
 
 
-#função para plotagem de gráfico
-def imprime_grafico(xvals, ymax, labels, colors):
-    plt.figure(figsize=(8, 5))
+def sistema(input_altitude_real: int, input_altitude_relativa: int, metodo_defuzz: str) -> None:
 
-    # Plota a gráfico e adiciona os valores
-    plt.plot(x, mfx, 'k')
-    for xv, y, label, color in zip(xvals, ymax, labels, colors):
-        plt.vlines(xv, 0, y, label=label, color=color)
-    plt.ylabel('Funcao de pertinencia Fuzzy')
-    plt.xlabel('Universo das variaveis')
-    plt.ylim(-0.1, 1.1)
-    plt.legend(loc=2)
+    altitude_real = control.Antecedent(numpy.arange(0, 1000, 1), "altitude_real")
+    altitude_relativa = control.Antecedent(numpy.arange(0, 1000, 1), "altitude_relativa")
+    velocidade = control.Consequent(numpy.arange(0, 100, 1), "velocidade", defuzzify_method=metodo_defuzz)
+    # angulo_asa = control.Antecedent(numpy.arange(0, 90, 0.1), "angulo_asa")
 
-    # Exibe o gráfico
-    plt.show()
+    altitude_real["baixa"] = skfuzzy.trimf(altitude_real.universe, [0, 0, 250])
+    altitude_real["media"] = skfuzzy.trapmf(altitude_real.universe, [200, 250, 500, 550])
+    altitude_real["alta"] = skfuzzy.trimf(altitude_real.universe, [500, 600, 700])
+    altitude_real["muito_alta"] = skfuzzy.trimf(altitude_real.universe, [650, 1000, 1000])
+
+    altitude_relativa["baixa"] = skfuzzy.trimf(altitude_real.universe, [0, 0, 200])
+    altitude_relativa["media"] = skfuzzy.trapmf(altitude_real.universe, [150, 300, 500, 550])
+    altitude_relativa["alta"] = skfuzzy.trimf(altitude_real.universe, [500, 1000, 1000])
+
+    velocidade["baixa"] = skfuzzy.trimf(velocidade.universe, [0, 0, 50])
+    velocidade["media"] = skfuzzy.trimf(velocidade.universe, [25, 50, 75])
+    velocidade["alta"] = skfuzzy.trimf(velocidade.universe, [75, 100, 100])
 
 
-# Gera função de pertinência trapezoidal, no intervalo [0, 1]
-x = np.arange(0, 5.05, 0.1) #gera valores de 0 até 5.05, com intervalo de 0.
-mfx = fuzz.trapmf(x, [2, 2.5, 3, 4.5])
+    regra_1 = control.Rule(altitude_relativa["baixa"] & (altitude_real["baixa"] | altitude_real["media"]), velocidade["alta"])
+    regra_2 = control.Rule(altitude_relativa["media"] & (altitude_real["baixa"] | altitude_real["media"]), velocidade["media"])
+    regra_3 = control.Rule(altitude_relativa["alta"] & (altitude_real["baixa"] | altitude_real["media"] | altitude_real["alta"]), velocidade["baixa"])
 
-# Defuzzificação das funções de pertinência
-defuzz_centroid = fuzz.defuzz(x, mfx, 'centroid')
-defuzz_mom = fuzz.defuzz(x, mfx, 'mom')
+    regra_4 = control.Rule(altitude_relativa["baixa"] & altitude_real["alta"], velocidade["media"])
+    regra_5 = control.Rule(altitude_relativa["media"] & altitude_real["alta"], velocidade["media"])
 
-# Coleção de valores para as linhas verticais do gráfico
-labels = ['centroide', 'media dos maximos'] #métodos de defuzificação
-xvals = [defuzz_centroid, defuzz_mom] #valores do eixo x
-colors = ['r', 'g'] #cores das linhas 
-ymax = [fuzz.interp_membership(x, mfx, i) for i in xvals]
+    regra_6 = control.Rule(altitude_relativa["baixa"] & altitude_real["muito_alta"], velocidade["baixa"])
+    regra_7 = control.Rule(altitude_relativa["media"] & altitude_real["muito_alta"], velocidade["baixa"])
 
-# Exibe a gráfico, com as funções de defuzificação
-imprime_grafico(xvals, ymax, labels, colors)
+
+    controle_velocidade = control.ControlSystem([regra_1, regra_2, regra_3, regra_4, regra_5, regra_6, regra_7])
+    simulacao_velocidade = control.ControlSystemSimulation(controle_velocidade)
+
+    simulacao_velocidade.input["altitude_real"] = input_altitude_real
+    simulacao_velocidade.input["altitude_relativa"] = input_altitude_relativa
+
+    simulacao_velocidade.compute()
+
+    print("Velocidade: %d" % simulacao_velocidade.output["velocidade"])
+
+    altitude_real.view()
+    altitude_relativa.view()
+    velocidade.view()
+    velocidade.view(sim=simulacao_velocidade)
+
+
+sistema(400, 200, "centroid")
+pyplot.show()
