@@ -7,6 +7,9 @@ verify_ssl = true
 
 [packages]
 numpy = "*"
+raylib = "*"
+scikit-fuzzy = "*"
+matplotlib = "*"
 
 [requires]
 python_version = "3.8"
