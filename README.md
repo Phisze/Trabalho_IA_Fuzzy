@@ -1,1 +1,1 @@
-# Trabalho_IA_Fuzzy
+# Inteligência Artificial - Trabalho Prático
